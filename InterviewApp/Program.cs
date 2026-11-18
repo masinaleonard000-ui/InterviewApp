@@ -1,8 +1,13 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
+using MediatR;
+using InterviewApp.Models;
 using InterviewApp.Services;
+using InterviewApp.MediatR.Commands;
+using InterviewApp.MediatR.Queries;
 
 class Program
 {
@@ -13,12 +18,26 @@ class Program
             {
                 config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
             })
-            .ConfigureServices((_, services) => { services.AddTransient<IGreetingService, GreetingService>(); })
+            .ConfigureServices((context, services) =>
+            {
+                services.Configure<GreetingOptions>(context.Configuration.GetSection("Greeting"));
+                services.AddTransient<IGreetingService, GreetingService>();
+                services.AddTransient<ITimeGreetingService, TimeGreetingService>();
+                services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
+            })
             .Build();
 
-        var greetingService = host.Services.GetRequiredService<IGreetingService>();
-        greetingService.Run();
+        var mediator = host.Services.GetRequiredService<IMediator>();
 
-        await host.RunAsync();
+        // Task 7: Replace the direct GreetingService.Run() call with MediatR Send().
+        // GreetUserHandler calls IGreetingService.GetGreeting() which combines:
+        // time-based greeting + language greeting word + configured message.
+        string greeting = await mediator.Send(new GreetUserCommand());
+        if (!string.IsNullOrEmpty(greeting))
+            Console.WriteLine(greeting);
+
+        // Task 8: GetTimeGreetingQuery demonstrates a dedicated MediatR query
+        // for the time-based greeting, combined with the configured message.
+        await mediator.Send(new GetTimeGreetingQuery());
     }
 }
